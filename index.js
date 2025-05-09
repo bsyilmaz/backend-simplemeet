@@ -8,25 +8,28 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:5173',
-      'https://simplemeets.netlify.app',
-      'https://simplemeets.netlify.app/'
-    ],
+    origin: '*', // Allow all origins temporarily for debugging
     methods: ['GET', 'POST'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
   },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 });
 
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'https://simplemeets.netlify.app',
-    'https://simplemeets.netlify.app/'
-  ],
-  methods: ['GET', 'POST'],
-  credentials: true
+  origin: '*', // Allow all origins temporarily for debugging
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url} from ${req.headers.origin}`);
+  next();
+});
 
 // In-memory storage for rooms
 const rooms = new Map();
@@ -103,6 +106,7 @@ io.on('connection', (socket) => {
   
   // Handle WebRTC signaling
   socket.on('send-signal', ({ to, signal }) => {
+    console.log(`Signal from ${socket.id} to ${to}`);
     io.to(to).emit('user-signal', { from: socket.id, signal });
   });
   
@@ -138,6 +142,11 @@ io.on('connection', (socket) => {
     if (currentRoom) {
       socket.to(currentRoom).emit('user-screen-share-stopped', { id: socket.id });
     }
+  });
+
+  // Log all errors
+  socket.on('error', (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
   });
 });
 
